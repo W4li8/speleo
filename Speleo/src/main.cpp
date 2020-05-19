@@ -26,7 +26,7 @@
 
 
 constexpr auto ENTRY = 0;
-constexpr auto A{'A'}, B{'B'}, C{'C'};
+constexpr auto A{'A'}, B{'B'}, C{'C'}; //TODO: make this an enum
 
 
 bool Bernouilli(double p) {
@@ -40,16 +40,15 @@ bool Bernouilli(double p) {
 }
 
 
-namespace prompt_user {
+template <typename Any>
+void PromptUserForBoundedValue(Any& val, Any min, Any max, std::string msg = "") {
 
-  template <class Any>
-  void BoundedValue(Any& val, Any min, Any max, std::string str = "") {
-    do {
-      std::cout << str;
-      std::cin  >> val;
-    } while(val < min or val > max);
-  }
-};
+  do {
+    std::cout << msg;
+    std::cin  >> val;
+  } while(val < min or val > max);
+
+}
 
 
 struct Region {
@@ -66,14 +65,7 @@ struct Region {
 
 };
 
-struct Map {
-
-  std::vector<std::vector<Region>> map;
-  int size; // map.size()
-
-  auto& operator[](int i) { return map[i]; }
-
-};
+using map = std::vector<std::vector<Region>>; //TODO: make this an array
 
 
 class Speleo {
@@ -87,10 +79,13 @@ class Speleo {
 
  private: // private fields
   char   exec_mode;     // [prompt_user] Execution mode - see TechReq
+  int    cave_size;     // [prompt_user]
   int    sample_size;   // [prompt_user]
   double accessibility; // [prompt_user] Probability of an area being accessible
 
-  Map cave;                // Map of the cave to analyze
+  map  cave_map;           // Map of the cave to analyze
+  map& cave = cave_map;
+
   int successful_attempts; // Successful attemps at traversing the cave
 
  private: // private methods
@@ -117,19 +112,19 @@ auto main(int argc, char *argv[]) -> int {
 
 Speleo::Speleo() {
 
-  prompt_user::BoundedValue(exec_mode, A, C, "Mode A, B or C ? ");
-  prompt_user::BoundedValue(cave.size, 1, INT_MAX, "Cave size [>0] ? ");
+  PromptUserForBoundedValue(exec_mode, A, C, "Mode A, B or C ? ");
+  PromptUserForBoundedValue(cave_size, 1, INT_MAX, "Cave size [>0] ? ");
   switch(exec_mode) {
     case A:
       ReadMapFromConsole();
       break;
     case B:
-      prompt_user::BoundedValue(accessibility, 0.0, 1.0, "Accessibility [0;1] ? ");
+      PromptUserForBoundedValue(accessibility, 0.0, 1.0, "Accessibility [0;1] ? ");
       // fall through
     case C:
       // fall through
     default:
-      prompt_user::BoundedValue(sample_size, 1, INT_MAX, "Sample size [>0] ? ");
+      PromptUserForBoundedValue(sample_size, 1, INT_MAX, "Sample size [>0] ? ");
   }
   std::cout << std::setprecision(4) << std::fixed;
 
@@ -137,25 +132,26 @@ Speleo::Speleo() {
 
 void Speleo::ReadMapFromConsole() {
 
-  for(int y{0}; y < cave.size; ++y) {
+  for(int y{0}; y < cave_size; ++y) {
     std::vector<Region> strip;
-    for(int x{0}; x < cave.size; ++x) {
+    for(int x{0}; x < cave_size; ++x) {
       bool tmp;
       std::cin >> tmp;
-      strip.push_back(Region(y, x, tmp != 0));
+      strip.push_back(Region(y, x, tmp));
     }
-    cave.map.push_back(strip);
+    cave_map.push_back(strip);
   }
 }
 
 void Speleo::GenerateMap() {
 
-  for(int y{0}; y < cave.size; ++y) {
+  cave_map.clear();
+  for(int y{0}; y < cave_size; ++y) {
     std::vector<Region> strip;
-    for(int x{0}; x < cave.size; ++x) {
+    for(int x{0}; x < cave_size; ++x) {
       strip.push_back(Region(y, x, Bernouilli(1 - accessibility)));
     }
-    cave.map.push_back(strip);
+    cave_map.push_back(strip);
   }
 }
 
@@ -174,13 +170,13 @@ void Speleo::Run() {
       for(auto sample{0}; sample < sample_size; sample += 1) {
         GenerateMap();
         AttemptCaveTraverse();
-        ResetMap();
       }
       std::cout << "Success for accessibility "<< accessibility <<" is "
                 << double(successful_attempts)/sample_size <<"\n";
       break;
     case C:  // advanced
-      for(accessibility = 0.0, exec_mode = B; accessibility <= 1.0; accessibility += 0.01) {
+      exec_mode = B;
+      for(accessibility = 0.0; accessibility <= 1.0; accessibility += 0.01) {
         Speleo::Run();
       }
       break;
@@ -205,18 +201,18 @@ void Speleo::AttemptCaveTraverse() {
   // Explore paths (starts NORTH_EAST)
   while(!regions_to_scout.empty()) {
     Region region = regions_to_scout.top();
-    int y(region.y), x(region.x);
+    int y{region.y}, x{region.x};
     // Stop explorations if cave exit found, in modes B and C
-    if(y+1 == cave.size) {
+    if(y+1 == cave_size) {
       successful_attempts += 1;
       if(exec_mode != A) break;
     }
     regions_to_scout.pop();
     // Order the stack as to prioritise the SOUTH-WEST direction
     if(y-1 >= 0) ScoutRegion(cave[y-1][x]); // NORTH
-    if(x+1 < cave.size) ScoutRegion(cave[y][x+1]); // EAST
+    if(x+1 < cave_size) ScoutRegion(cave[y][x+1]); // EAST
     if(x-1 >= 0) ScoutRegion(cave[y][x-1]); // WEST
-    if(y+1 < cave.size) ScoutRegion(cave[y+1][x]); // SOUTH
+    if(y+1 < cave_size) ScoutRegion(cave[y+1][x]); // SOUTH
   }
 }
 
@@ -224,16 +220,10 @@ void Speleo::AttemptCaveTraverse() {
 
 void Speleo::DisplayPaths() {
 
-  for(auto strip : cave.map) {
+  for(auto strip : cave_map) {
     for(auto region : strip) {
       std::cout << !region.discovered <<' ';
     }
     std::cout <<"\n";
   }
-}
-
-void Speleo::ResetMap() {
-
-  cave.map.clear();
-
 }
