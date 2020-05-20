@@ -2,17 +2,6 @@
  * @file    main.cpp
  * @brief	  This is the only file of the Speleo Project.
  *
- *  			  The goal is to determine whether a cave can be traversed safely.
- * 			    Different modes are proposed:
- * 			    A) The user enters the map and exit paths are shown.
- * 		  	  B) The user gives a probability that some area of the map is accessible
- * 	  		     and the program outputs the probability that the cave can be crossed.
- *   			  C) The program runs in mode B) for every probability (1% increments).
- *
- *  			  The results are surprising, there seems to be a well defined threshold
- * 	  		  in the accessibility probability from which it is safe to attempt a
- * 		    	cave traverse.
- *
  * @author	Filip Slezak
  * @version 08.05.2020
  **/
@@ -95,7 +84,7 @@ class Speleo {
   void AttemptCaveTraverse(void); /// DFS Algorithm
 
   void DisplayPaths(void);
-  void ResetMap(void);
+  void DisplaySuccessRate(void);
 
 };
 
@@ -126,8 +115,6 @@ Speleo::Speleo() {
     default:
       PromptUserForBoundedValue(sample_size, 1, INT_MAX, "Sample size [>0] ? ");
   }
-  std::cout << std::setprecision(4) << std::fixed;
-
 }
 
 void Speleo::ReadMapFromConsole() {
@@ -163,7 +150,6 @@ void Speleo::Run() {
   switch(exec_mode) {
     case A:  // elementary
       AttemptCaveTraverse();
-      std::cout << (successful_attempts > 0 ? "Exit found\n" : "Exit NOT found\n");
       DisplayPaths();
       break;
     case B:  // intermediate
@@ -171,8 +157,7 @@ void Speleo::Run() {
         GenerateMap();
         AttemptCaveTraverse();
       }
-      std::cout << "Success for accessibility "<< accessibility <<" is "
-                << double(successful_attempts)/sample_size <<"\n";
+      DisplaySuccessRate();
       break;
     case C:  // advanced
       exec_mode = B;
@@ -220,10 +205,20 @@ void Speleo::AttemptCaveTraverse() {
 
 void Speleo::DisplayPaths() {
 
+  std::cout << (successful_attempts ? "Exit found\n" : "Exit NOT found\n");
+
   for(auto strip : cave_map) {
     for(auto region : strip) {
       std::cout << !region.discovered <<' ';
     }
     std::cout <<"\n";
   }
+}
+
+void Speleo::DisplaySuccessRate() {
+
+  std::cout << std::setprecision(4) << std::fixed
+            <<"Success rate for accessibility "<< accessibility <<" is "
+            << double(successful_attempts)/sample_size <<"\n";
+
 }
